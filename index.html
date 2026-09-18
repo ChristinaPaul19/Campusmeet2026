@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Jesus Youth Campus Meet - Futuristic Registration & Attendance Portal</title>
+  <meta name="description" content="Futuristic QR Code Attendance & Participant Management Portal for Jesus Youth Campus Meet.">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- QR Code & Scanner Libraries -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body>
+
+  <div id="adminLoginOverlay" class="admin-login-overlay">
+    <div class="admin-login-card">
+      <div class="login-header">
+        <div class="brand-logo">⚡</div>
+        <div>
+          <h2>Volunteer Access</h2>
+          <p>Sign in to register participants</p>
+        </div>
+      </div>
+
+      <form id="adminLoginForm" class="admin-login-form">
+        <div class="form-group">
+          <label for="adminUsername">Admin Username</label>
+          <input type="text" id="adminUsername" class="form-control" placeholder="admin" required>
+        </div>
+
+        <div class="form-group">
+          <label for="adminPassword">Admin Password</label>
+          <input type="password" id="adminPassword" class="form-control" placeholder="Enter password" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Login to Register</button>
+      </form>
+
+      <p class="login-note">Use the shared credentials: <strong>Username:</strong> admin &nbsp;|&nbsp; <strong>Password:</strong> campusmeet2026</p>
+    </div>
+  </div>
+
+  <!-- Top Futuristic Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand-section">
+        <div class="brand-logo">⚡</div>
+        <div class="brand-info">
+          <h1>Jesus Youth Campus Meet</h1>
+          <div class="tagline">
+            <span>Registration & Attendance Desk</span>
+            <span class="badge-pill">Cyber Portal</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="header-actions">
+        <div class="live-badge">
+          <span class="pulse-dot"></span>
+          <span id="headerLiveStatus">Ready to Scan</span>
+        </div>
+        <button class="btn btn-sm btn-secondary" id="btnSyncFromGoogleSheet" title="Fetch live updates from Google Sheet">
+          🔄 Sync Google Sheet
+        </button>
+        <button class="btn btn-sm btn-primary" id="btnQuickAdd" title="Register spot participant">
+          ➕ New Walk-in
+        </button>
+        <button class="btn btn-sm btn-secondary" id="btnAdminLogout" title="Logout from volunteer access">
+          🚪 Logout
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="app-nav">
+    <div class="nav-container">
+      <button class="nav-tab active" data-tab="scanner-view">
+        📷 QR Scanner HUD
+      </button>
+      <button class="nav-tab" data-tab="participants-view">
+        👥 Participants Directory <span class="tab-badge" id="navCountTotal">0</span>
+      </button>
+      <button class="nav-tab" data-tab="analytics-view">
+        📊 College & Parish Stats
+      </button>
+      <button class="nav-tab" data-tab="badges-view">
+        🪪 QR Badge Maker
+      </button>
+      <button class="nav-tab" data-tab="data-view">
+        ☁️ Google Sheets Database
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main App Content -->
+  <main class="app-main">
+
+    <!-- KPI Summary Metrics -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-icon blue">📋</div>
+        <div class="metric-details">
+          <div class="metric-value" id="statTotal">0</div>
+          <div class="metric-label">Confirmed Yes</div>
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-icon green">✅</div>
+        <div class="metric-details">
+          <div class="metric-value" id="statPresent">0</div>
+          <div class="metric-label">Present (Checked-In)</div>
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-icon amber">⏳</div>
+        <div class="metric-details">
+          <div class="metric-value" id="statPending">0</div>
+          <div class="metric-label">Awaiting Arrival</div>
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-icon purple">📈</div>
+        <div class="metric-details">
+          <div class="metric-value" id="statTurnout">0%</div>
+          <div class="metric-label">Turnout Rate</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 1: QR CODE SCANNER HUD -->
+    <section id="scanner-view" class="tab-view active">
+      <div class="scanner-layout">
+        <!-- Left: Camera Viewfinder & Controls -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">📷 High-Precision QR Scanner</h2>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <button id="btnToggleTorch" class="btn btn-sm btn-secondary" style="display: none;" title="Toggle Flashlight">
+                🔦 Flash
+              </button>
+              <button id="btnToggleCamera" class="btn btn-sm btn-primary">Start Camera</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <!-- Camera Viewfinder -->
+            <div class="scanner-viewport-wrapper">
+              <div id="reader"></div>
+              <div class="scanner-overlay" id="scannerOverlay" style="display: none;">
+                <div class="scan-box">
+                  <div class="scan-line"></div>
+                  <div class="scan-corner-tr"></div>
+                  <div class="scan-corner-bl"></div>
+                </div>
+                <div class="scan-instructions">Align QR code within reticle</div>
+              </div>
+            </div>
+
+            <!-- Hardware Camera Controls -->
+            <div class="scanner-controls">
+              <select id="cameraSelect" class="form-control" style="font-size: 0.8rem; display: none;">
+                <option value="">Select Camera...</option>
+              </select>
+              <button id="btnSwitchCamera" class="btn btn-sm btn-secondary" style="display: none;">
+                🔄 Switch Camera
+              </button>
+            </div>
+
+            <!-- Manual Search / WhatsApp Number / Barcode Entry -->
+            <div class="manual-input-box">
+              <label style="display: block; font-size: 0.775rem; font-weight: 700; color: var(--text-cyan); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px;">
+                Instant Check-In (Reg ID, WhatsApp, or Name):
+              </label>
+              <form id="manualCheckinForm" class="input-with-button">
+                <input type="text" id="manualIdInput" class="form-control" placeholder="Type Reg ID (e.g. JY-015), WhatsApp No, or Name..." autocomplete="off">
+                <button type="submit" class="btn btn-primary">Verify</button>
+              </form>
+
+              <!-- Image QR Scanner Option -->
+              <div style="margin-top: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+                <span style="font-size: 0.775rem; color: var(--text-muted);">Have a photo/screenshot of the QR?</span>
+                <label class="btn btn-sm btn-secondary" style="cursor: pointer;">
+                  📁 Scan QR from Image
+                  <input type="file" id="qrFileInput" accept="image/*" style="display: none;">
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Verification Result & Last Scanned Card -->
+        <div class="scan-result-container">
+          <!-- Status Banner -->
+          <div id="scanStatusBanner" class="status-banner idle">
+            <div class="status-icon" id="scanStatusIcon">🔍</div>
+            <div>
+              <div class="status-title" id="scanStatusTitle">Ready for Scanning</div>
+              <div class="status-sub" id="scanStatusSub">Point camera at student's badge, WhatsApp QR, or enter ID/phone above.</div>
+            </div>
+          </div>
+
+          <!-- Active Participant Card -->
+          <div id="scannedParticipantCard" class="participant-profile" style="display: none;">
+            <div class="profile-header">
+              <div>
+                <div class="profile-name" id="scannedName">-</div>
+                <span class="profile-id" id="scannedId">JY-000</span>
+              </div>
+              <span id="scannedStatusBadge" class="status-pill present">Present</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="detail-label">🎓 College:</span>
+              <span class="detail-val" id="scannedCollege">-</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">📚 Course:</span>
+              <span class="detail-val" id="scannedCourse">-</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">⛪ Parish:</span>
+              <span class="detail-val" id="scannedParish">-</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">📱 WhatsApp:</span>
+              <span class="detail-val" id="scannedPhone">-</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">⏰ Check-in:</span>
+              <span class="detail-val" id="scannedTime" style="color: var(--electric-blue); font-family: monospace;">-</span>
+            </div>
+
+            <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <button id="btnUndoCheckin" class="btn btn-sm btn-danger">↩️ Undo Check-in</button>
+              <button id="btnViewBadgeDirect" class="btn btn-sm btn-secondary">🪪 View Badge</button>
+            </div>
+          </div>
+
+          <!-- Recent Check-ins History -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">🕒 Real-Time Check-In Stream</h3>
+              <span id="recentCountBadge" class="tab-badge">0 today</span>
+            </div>
+            <div class="card-body" style="padding: 0.75rem;">
+              <ul class="recent-scans-list" id="recentScansList">
+                <li style="padding: 1rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+                  No check-ins yet. Scanned students will stream here in real-time.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 2: PARTICIPANTS DIRECTORY (WITH COLLEGE & PARISH FILTER/SORT) -->
+    <section id="participants-view" class="tab-view">
+      <!-- Filter Controls Bar -->
+      <div class="participants-filter-bar">
+        <div class="filter-controls-row">
+          <!-- Live Search -->
+          <div class="filter-group">
+            <label for="searchInput">🔎 Search Student</label>
+            <input type="text" id="searchInput" placeholder="Name, ID, WhatsApp, Course...">
+          </div>
+
+          <!-- Filter by College (Requested) -->
+          <div class="filter-group">
+            <label for="collegeFilter">🎓 Filter by College</label>
+            <select id="collegeFilter">
+              <option value="">All Colleges (Show All)</option>
+            </select>
+          </div>
+
+          <!-- Filter by Parish (Requested) -->
+          <div class="filter-group">
+            <label for="parishFilter">⛪ Filter by Parish</label>
+            <select id="parishFilter">
+              <option value="">All Parishes (Show All)</option>
+            </select>
+          </div>
+
+          <!-- Filter by Status -->
+          <div class="filter-group">
+            <label for="statusFilter">📌 Attendance</label>
+            <select id="statusFilter">
+              <option value="">All Statuses</option>
+              <option value="Present">Present Only</option>
+              <option value="Absent">Pending / Absent</option>
+            </select>
+          </div>
+
+          <!-- Sort Order (Requested) -->
+          <div class="filter-group">
+            <label for="sortBySelect">↕️ Sort By</label>
+            <select id="sortBySelect">
+              <option value="id-asc">Registration ID (Default)</option>
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="college-asc">College (A-Z)</option>
+              <option value="parish-asc">Parish (A-Z)</option>
+              <option value="checkin-desc">Recent Check-in First</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Filter Summary & Quick Buttons -->
+        <div class="filter-actions-row">
+          <div class="active-filter-tags" id="activeFilterTags">
+            <span style="font-size: 0.85rem; color: var(--text-muted);">
+              Showing <strong id="filterResultCount" style="color: var(--electric-blue);">0</strong> of <span id="filterTotalCount">0</span> participants
+            </span>
+          </div>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button class="btn btn-sm btn-secondary" id="btnResetFilters">Reset Filters</button>
+            <button class="btn btn-sm btn-success" id="btnExportCSV">📥 Export CSV</button>
+            <button class="btn btn-sm btn-primary" id="btnOpenAddModal">➕ Add Participant</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Participants Table -->
+      <div class="table-responsive">
+        <table class="data-table" id="participantsTable">
+          <thead>
+            <tr>
+              <th class="sortable" data-sort="id">Reg ID</th>
+              <th class="sortable" data-sort="name">Student Name</th>
+              <th class="sortable" data-sort="college">College</th>
+              <th class="sortable" data-sort="parish">Parish</th>
+              <th>Course / Year</th>
+              <th class="sortable" data-sort="status">Attendance</th>
+              <th class="sortable" data-sort="time">Check-in Time</th>
+              <th style="text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="participantsTableBody">
+            <!-- Populated dynamically via JS -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- VIEW 3: COLLEGE & PARISH ANALYTICS -->
+    <section id="analytics-view" class="tab-view">
+      <div class="analytics-grid">
+        <!-- College Breakdown -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">🎓 Attendance by College</h3>
+            <span class="tab-badge" id="collegeTotalBadge">0 Colleges</span>
+          </div>
+          <div class="card-body">
+            <div class="progress-list" id="collegeAnalyticsList">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Parish Breakdown -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">⛪ Attendance by Parish</h3>
+            <span class="tab-badge" id="parishTotalBadge">0 Parishes</span>
+          </div>
+          <div class="card-body">
+            <div class="progress-list" id="parishAnalyticsList">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 4: QR BADGE MAKER & PRINTABLE ID CARDS -->
+    <section id="badges-view" class="tab-view">
+      <div class="badge-maker-header">
+        <div>
+          <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--text-pure);">🪪 Participant Badges & QR Generator</h2>
+          <p style="font-size: 0.85rem; color: var(--text-muted);">
+            Print high-contrast badges for participants or download individual QR codes for distribution.
+          </p>
+        </div>
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+          <select id="badgeFilterSelect" class="form-control" style="width: auto; font-size: 0.85rem;">
+            <option value="all">All Participants</option>
+            <option value="present">Present Only</option>
+            <option value="absent">Not Checked In</option>
+          </select>
+          <button class="btn btn-primary" onclick="window.print()">
+            🖨️ Print Badges (PDF)
+          </button>
+        </div>
+      </div>
+
+      <div class="badge-grid" id="badgeGridContainer">
+        <!-- Badges rendered with dynamic QR codes -->
+      </div>
+    </section>
+
+    <!-- VIEW 5: GOOGLE SHEETS & DATABASE MANAGEMENT -->
+    <section id="data-view" class="tab-view">
+      <div class="scanner-layout">
+        <!-- Google Sheets Direct Live Sync -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">📊 Google Sheets Live Database</h3>
+          </div>
+          <div class="card-body">
+            <div style="margin-bottom: 1rem;">
+              <span class="badge-pill">Connected Database</span>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px;">
+                Linked to Google Sheet: <a href="https://docs.google.com/spreadsheets/d/1GzdwRe-xsHEH1O_Dhu5qju4m3BPZvaAs8yqn4wOmwtQ/edit" target="_blank" style="color: var(--electric-blue); text-decoration: none;">Open Google Sheet ↗</a>
+              </p>
+            </div>
+
+            <button id="btnFetchGoogleSheetDirect" class="btn btn-primary btn-sm" style="margin-bottom: 1.25rem;">
+              🔄 Re-Fetch & Update Database from Google Sheet
+            </button>
+
+            <div class="form-group">
+              <label for="googleScriptUrlInput">Google Apps Script Webhook URL (For Real-time Writeback):</label>
+              <input type="url" id="googleScriptUrlInput" class="form-control" placeholder="https://script.google.com/macros/s/.../exec">
+            </div>
+
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem; flex-wrap: wrap;">
+              <button id="btnSaveScriptUrl" class="btn btn-sm btn-primary">Save Webhook</button>
+              <button id="btnOpenScriptHelp" class="btn btn-sm btn-outline">📋 View Setup Script</button>
+            </div>
+
+            <div style="background: rgba(11, 14, 38, 0.7); border: 1px solid var(--border-neon-violet); border-radius: var(--radius-md); padding: 1rem; font-size: 0.825rem;">
+              <strong style="color: var(--text-cyan);">💡 How to put QR codes inside your Google Sheet:</strong>
+              <p style="margin-top: 0.35rem; color: var(--text-muted);">
+                In your Google Sheet, add a new column named <code>QR Code</code> and paste:
+              </p>
+              <pre style="background: #040614; color: #38bdf8; padding: 8px; border-radius: 4px; margin-top: 6px; overflow-x: auto; font-family: monospace;">=IMAGE("https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" &amp; A2)</pre>
+              <p style="margin-top: 0.4rem; color: var(--text-muted); font-size: 0.775rem;">
+                (Where <code>A2</code> is student Name or Registration ID).
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Import / Export CSV -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">📁 Import & Export Data</h3>
+          </div>
+          <div class="card-body">
+            <div style="margin-bottom: 1.25rem;">
+              <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--text-pure); margin-bottom: 0.35rem;">Import Custom CSV File</h4>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                Upload a CSV file containing participant records.
+              </p>
+              <input type="file" id="csvFileInput" accept=".csv" class="form-control" style="font-size: 0.85rem;">
+              <button id="btnUploadCSV" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;">
+                📥 Import CSV File
+              </button>
+            </div>
+
+            <hr style="border: none; border-top: 1px solid rgba(139, 92, 246, 0.2); margin: 1.25rem 0;">
+
+            <div>
+              <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--text-pure); margin-bottom: 0.35rem;">Reset / Local Database Options</h4>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                Reload the 147 confirmed Yes participants from the local database or clear attendance marks.
+              </p>
+              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button id="btnReloadRealDatabase" class="btn btn-secondary btn-sm">Reload 147 Confirmed Yes Students</button>
+                <button id="btnClearAttendanceOnly" class="btn btn-secondary btn-sm">Reset Attendance Marks</button>
+                <button id="btnClearData" class="btn btn-danger btn-sm">Clear All</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL: Add New Participant (Walk-In) -->
+  <div class="modal-backdrop" id="addParticipantModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">➕ Add Spot Participant</h3>
+        <button class="modal-close" onclick="closeModal('addParticipantModal')">&times;</button>
+      </div>
+      <form id="addParticipantForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="newStudentName">Full Name *</label>
+            <input type="text" id="newStudentName" class="form-control" required placeholder="e.g. Maria Joseph">
+          </div>
+          <div class="form-group">
+            <label for="newStudentCollege">College Name *</label>
+            <input type="text" id="newStudentCollege" class="form-control" required placeholder="e.g. MACE, Kothamangalam" list="knownCollegesList">
+            <datalist id="knownCollegesList"></datalist>
+          </div>
+          <div class="form-group">
+            <label for="newStudentParish">Parish / Church *</label>
+            <input type="text" id="newStudentParish" class="form-control" required placeholder="e.g. St. George Cathedral Kothamangalam" list="knownParishesList">
+            <datalist id="knownParishesList"></datalist>
+          </div>
+          <div class="form-group">
+            <label for="newStudentCourse">Course / Branch</label>
+            <input type="text" id="newStudentCourse" class="form-control" placeholder="e.g. BTech Computer Science">
+          </div>
+          <div class="form-group">
+            <label for="newStudentPhone">WhatsApp Number</label>
+            <input type="tel" id="newStudentPhone" class="form-control" placeholder="e.g. 9847123450">
+          </div>
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-pure); cursor: pointer;">
+              <input type="checkbox" id="newStudentMarkPresent" checked> Mark Present immediately upon registration
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('addParticipantModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save & Generate QR</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: View Single Badge -->
+  <div class="modal-backdrop" id="viewBadgeModal">
+    <div class="modal-card" style="max-width: 380px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🪪 Participant Badge</h3>
+        <button class="modal-close" onclick="closeModal('viewBadgeModal')">&times;</button>
+      </div>
+      <div class="modal-body" id="singleBadgeModalContent" style="display: flex; justify-content: center;">
+        <!-- Injected dynamically -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('viewBadgeModal')">Close</button>
+        <button type="button" class="btn btn-primary" id="btnPrintSingleBadge">🖨️ Print Badge</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Google Apps Script Code Viewer -->
+  <div class="modal-backdrop" id="googleScriptModal">
+    <div class="modal-card" style="max-width: 680px;">
+      <div class="modal-header">
+        <h3 class="modal-title">📋 Google Apps Script Setup Code</h3>
+        <button class="modal-close" onclick="closeModal('googleScriptModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+          In your Google Sheet, click <strong>Extensions &gt; Apps Script</strong>, paste the code below, and click <strong>Deploy &gt; New deployment &gt; Web app</strong> (set access to <em>Anyone</em>):
+        </p>
+        <textarea id="appsScriptCodeBlock" class="form-control" rows="12" readonly style="font-family: monospace; font-size: 0.8rem; background: #040614; color: #38bdf8;"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('googleScriptModal')">Close</button>
+        <button class="btn btn-primary" id="btnCopyScriptCode">📋 Copy Code</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load preloaded database of 147 confirmed Yes students -->
+  <script src="database.js"></script>
+
+  <!-- Main JavaScript Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
