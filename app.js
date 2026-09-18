@@ -21,6 +21,14 @@ function onlyConfirmedYes(list) {
   return (list || []).filter(p => isConfirmedYes(p.confirmed));
 }
 
+function sortParticipantsByCollege() {
+  state.participants.sort((a, b) => {
+    const collegeCompare = (a.college || '').trim().localeCompare((b.college || '').trim(), undefined, { sensitivity: 'base' });
+    if (collegeCompare !== 0) return collegeCompare;
+    return (a.name || '').trim().localeCompare((b.name || '').trim(), undefined, { sensitivity: 'base' });
+  });
+}
+
 // App State
 const state = {
   participants: [],
@@ -129,6 +137,7 @@ function loadParticipants() {
     // Version matches — use cached data (preserves check-in marks)
     try {
       state.participants = onlyConfirmedYes(JSON.parse(storedData));
+      sortParticipantsByCollege();
       console.log('Loaded', state.participants.length, 'confirmed Yes participants from localStorage');
       if (state.participants.length === 0 && window.PRELOADED_PARTICIPANTS && window.PRELOADED_PARTICIPANTS.length > 0) {
         forceReloadFromPreloaded();
@@ -171,6 +180,7 @@ function forceReloadFromPreloaded() {
         checkInTime: priorCheckInTime || p.checkInTime || null
       };
     });
+    sortParticipantsByCollege();
     console.log('Loaded', state.participants.length, 'confirmed Yes participants from database.js');
   } else {
     state.participants = [];
@@ -185,6 +195,7 @@ function fallbackToPreloaded() {
 }
 
 function saveParticipants() {
+  sortParticipantsByCollege();
   localStorage.setItem('JY_REAL_DATABASE_V3', JSON.stringify(state.participants));
   localStorage.setItem('JY_DB_VERSION', DB_VERSION);
   updateAllViews();
@@ -348,12 +359,10 @@ function updateMetrics() {
   const total = state.participants.length;
   const present = state.participants.filter(p => p.status === 'Present').length;
   const pending = total - present;
-  const turnoutRate = total > 0 ? Math.round((present / total) * 100) : 0;
 
   document.getElementById('statTotal').textContent = total;
   document.getElementById('statPresent').textContent = present;
   document.getElementById('statPending').textContent = pending;
-  document.getElementById('statTurnout').textContent = `${turnoutRate}%`;
   document.getElementById('navCountTotal').textContent = total;
   const totalFilterCount = document.getElementById('filterTotalCount');
   if (totalFilterCount) totalFilterCount.textContent = total;
@@ -658,10 +667,30 @@ function handleScanResult(decodedText) {
     title.textContent = 'Already Checked In';
     sub.textContent = `${participant.name} was already verified at ${participant.checkInTime || 'earlier'}.`;
   } else {
+    const confirmedMark = window.confirm(`Mark ${participant.name} as present for attendance?`);
+    if (!confirmedMark) {
+      banner.className = 'status-banner idle';
+      icon.textContent = '⏸️';
+      title.textContent = 'Attendance Not Marked';
+      sub.textContent = `${participant.name} is still pending.`;
+      card.style.display = 'block';
+      document.getElementById('scannedName').textContent = participant.name;
+      document.getElementById('scannedId').textContent = participant.id;
+      document.getElementById('scannedCollege').textContent = participant.college || '—';
+      document.getElementById('scannedCourse').textContent = `${participant.course || '—'} ${participant.year ? `(${participant.year})` : ''}`;
+      document.getElementById('scannedParish').textContent = participant.parish || '—';
+      document.getElementById('scannedPhone').textContent = participant.phone || '—';
+      document.getElementById('scannedTime').textContent = '—';
+      document.getElementById('scannedStatusBadge').className = 'status-pill absent';
+      document.getElementById('scannedStatusBadge').textContent = 'Absent';
+      state.isProcessingScan = false;
+      return;
+    }
+
     // New Verified Check-in
     participant.status = 'Present';
     participant.checkInTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    
+
     // Add to recent stream
     state.recentScans.unshift({ ...participant });
     if (state.recentScans.length > 20) state.recentScans.pop();
@@ -715,6 +744,9 @@ function toggleAttendance(id) {
     p.checkInTime = null;
     AudioFeedback.play('warning');
   } else {
+    const confirmedMark = window.confirm(`Mark ${p.name} as present for attendance?`);
+    if (!confirmedMark) return;
+
     p.status = 'Present';
     p.checkInTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     AudioFeedback.play('success');
@@ -1002,9 +1034,7 @@ function renderBadgeGrid() {
     return;
   }
 
-  // Render max 100 badges initially to maintain high UI performance
-  const displayLimit = Math.min(list.length, 100);
-  for (let i = 0; i < displayLimit; i++) {
+  for (let i = 0; i < list.length; i++) {
     const p = list[i];
     const badge = document.createElement('div');
     badge.className = 'student-badge-card';
@@ -1039,13 +1069,13 @@ function renderBadgeGrid() {
     }, 0);
   }
 
-  if (list.length > 100) {
+  if (list.length > 0) {
     const notice = document.createElement('div');
     notice.style.gridColumn = '1 / -1';
     notice.style.textAlign = 'center';
     notice.style.padding = '1rem';
     notice.style.color = 'var(--text-cyan)';
-    notice.textContent = `Showing 100 of ${list.length} badges for preview. All ${list.length} are included when printing PDF!`;
+    notice.textContent = `${list.length} badges generated successfully.`;
     container.appendChild(notice);
   }
 }
